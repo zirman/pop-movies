@@ -1,18 +1,23 @@
 package com.homes.popmovies;
 
-import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
-import android.text.format.Time;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
+import android.widget.BaseAdapter;
+import android.widget.GridView;
+import android.widget.ImageView;
+
+import com.squareup.picasso.Picasso;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -24,27 +29,17 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.text.SimpleDateFormat;
-
-/**
- * A simple {@link Fragment} subclass.
- * Activities that contain this fragment must implement the
- * {@link MovieGridFragment.OnFragmentInteractionListener} interface
- * to handle interaction events.
- * Use the {@link MovieGridFragment#newInstance} factory method to
- * create an instance of this fragment.
- */
+import java.util.ArrayList;
 
 public class MovieGridFragment extends Fragment {
+
     private static final String LOG_TAG =
             MovieGridFragment.class.getSimpleName();
 
-    ArrayAdapter arrayAdpater;
-
-    private OnFragmentInteractionListener mListener;
+    private MoviePosterAdapter moviePosterAdapter;
 
     public static MovieGridFragment newInstance() {
-        MovieGridFragment fragment = new MovieGridFragment();
+        final MovieGridFragment fragment = new MovieGridFragment();
         fragment.setArguments(new Bundle());
         return fragment;
     }
@@ -55,11 +50,12 @@ public class MovieGridFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+    }
 
-//        if (getArguments() != null) {
-//            mParam1 = getArguments().getString(ARG_PARAM1);
-//            mParam2 = getArguments().getString(ARG_PARAM2);
-//        }
+    @Override
+    public void onStart() {
+        super.onStart();
+        updateMovies();
     }
 
     @Override
@@ -68,133 +64,107 @@ public class MovieGridFragment extends Fragment {
             ViewGroup container,
             Bundle savedInstanceState) {
 
-        return inflater.inflate(R.layout.fragment_movie_grid, container, false);
-    }
+        final View rootView = inflater.inflate(
+                R.layout.fragment_movie_grid,
+                container,
+                false);
 
-    @Override
-    public void onAttach(Activity activity) {
-        super.onAttach(activity);
+        final GridView gridView = (GridView)
+                rootView.findViewById(R.id.gridview_movies);
 
-        try {
-            mListener = (OnFragmentInteractionListener) activity;
+        moviePosterAdapter = new MoviePosterAdapter(
+                getActivity(),
+                new ArrayList<Movie>());
 
-        } catch (ClassCastException e) {
+        gridView.setAdapter(moviePosterAdapter);
 
-            throw new ClassCastException(activity.toString()
-                    + " must implement OnFragmentInteractionListener");
-        }
-    }
+        gridView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
-    @Override
-    public void onDetach() {
-        super.onDetach();
-        mListener = null;
-    }
+            @Override
+            public void onItemClick(
+                    AdapterView<?> parent,
+                    View view,
+                    int position,
+                    long id) {
 
-    /**
-     * This interface must be implemented by activities that contain this
-     * fragment to allow an interaction in this fragment to be communicated
-     * to the activity and potentially other fragments contained in that
-     * activity.
-     * <p/>
-     * See the Android Training lesson <a href=
-     * "http://developer.android.com/training/basics/fragments/
-     * communicating.html"
-     * >Communicating with Other Fragments</a> for more information.
-     */
+                Intent intent = new Intent(getActivity(), DetailActivity.class);
 
-    public interface OnFragmentInteractionListener {
+                intent.putExtra(
+                        DetailActivity.MOVIE_PARCEL,
+                        moviePosterAdapter.getItem(position));
 
-        // TODO: Update argument type and name
+                startActivity(intent);
+            }
+        });
 
-        public void onFragmentInteraction(Uri uri);
+        return rootView;
     }
 
     private void updateMovies() {
-        new FetchMoviesTask().execute();
+
+        final SharedPreferences sharedPref =
+                PreferenceManager.getDefaultSharedPreferences(
+                        getActivity());
+
+        new FetchMoviesTask().execute(sharedPref.getString(
+                getString(R.string.pref_sort_by_key),
+                getString(R.string.pref_sort_by_default)));
     }
 
-    private class FetchMoviesTask extends AsyncTask<String, Void, String[]> {
-        @Override
-        protected String[] doInBackground(String ... zips) {
+    private class FetchMoviesTask extends AsyncTask<String, Void, Movie[]> {
 
+        private static final String BASE_URI =
+                "http://api.themoviedb.org/3/discover/movie?sort_by=&api_key=";
+
+        @Override
+        protected Movie[] doInBackground(final String ... sortBy) {
             HttpURLConnection urlConnection = null;
             BufferedReader reader = null;
-            String[] moviesJsonStr;
-
+            Movie[] movies;
             try {
 
-                URL url = new URL(
-                        Uri.parse("http://api.themoviedb.org/3/discover/movie?sort_by=&api_key=")
+                final URL url = new URL(
+                        Uri.parse(BASE_URI)
                                 .buildUpon()
                                 .appendQueryParameter(
                                         "sort_by",
-                                        "popularity.desc")
+                                        sortBy[0])
                                 .appendQueryParameter(
                                         "api_key",
                                         getString(R.string.tmdb_api_key))
                                 .build()
                                 .toString());
 
-                // Create the request to OpenWeatherMap, and open the connection
-
                 urlConnection = (HttpURLConnection) url.openConnection();
                 urlConnection.setRequestMethod("GET");
                 urlConnection.connect();
 
-                // Read the input stream into a String
-
-                InputStream inputStream = urlConnection.getInputStream();
-                StringBuffer buffer = new StringBuffer();
+                final InputStream inputStream = urlConnection.getInputStream();
+                final StringBuffer buffer = new StringBuffer();
 
                 if (inputStream == null) {
-
-                    // Nothing to do.
-
-                    return null;
+                    throw new IOException("null input stream");
                 }
 
                 reader = new BufferedReader(new InputStreamReader(inputStream));
-
                 String line;
 
                 while ((line = reader.readLine()) != null) {
-
-                    // Since it's JSON, adding a newline isn't necessary (it
-                    // won't affect parsing) But it does make debugging a *lot*
-                    // easier if you print out the completed buffer for
-                    // debugging.
-
                     buffer.append(line + "\n");
                 }
 
-                if (buffer.length() == 0) {
-
-                    // Stream was empty.  No point in parsing.
-
-                    return null;
-                }
-
                 try {
-
-                    forecastJsonStr = getWeatherDataFromJson(
-                            buffer.toString(),
-                            7);
+                    movies = getMovieDataFromJson(buffer.toString());
 
                 } catch (JSONException exception) {
                     Log.e(LOG_TAG, exception.getMessage(), exception);
                     exception.printStackTrace();
-                    return null;
+                    movies = null;
                 }
 
-            } catch (IOException e) {
-
-                Log.e(LOG_TAG, "Error ", e);
-
-                // If the code didn't successfully get the weather data, there's
-                // no point in attemping to parse it.
-
-                return null;
+            } catch (IOException exception) {
+                Log.e(LOG_TAG, "Error ", exception);
+                movies = null;
 
             } finally {
 
@@ -213,153 +183,89 @@ public class MovieGridFragment extends Fragment {
                 }
             }
 
-            return forecastJsonStr;
+            return movies;
         }
 
         @Override
-        protected void onPostExecute(String[] json) {
-            arrayAdapter.clear();
-            arrayAdapter.addAll(json);
+        protected void onPostExecute(final Movie[] movies) {
+            moviePosterAdapter.replace(movies);
         }
 
-        private String getReadableDateString(long time){
-
-            // Because the API returns a unix timestamp (measured in seconds),
-            // it must be converted to milliseconds in order to be converted to
-            // valid date.
-
-            SimpleDateFormat shortenedDateFormat =
-                    new SimpleDateFormat("EEE MMM dd");
-
-            return shortenedDateFormat.format(time);
-        }
-
-        /**
-         * Prepare the weather high/lows for presentation.
-         */
-
-        private String formatHighLows(double high, double low) {
-
-            // For presentation, assume the user doesn't care about tenths of a
-            // degree.
-
-            SharedPreferences sharedPref =
-                    PreferenceManager.getDefaultSharedPreferences(
-                            getActivity());
-
-//            String units = sharedPref.getString(
-//                    getString(R.string.pref_temperature_units_key),
-//                    getString(R.string.pref_temperature_units_default));
-//
-//            if (units.equals("imperial")) {
-//                high = (high * 9 / 5) + 32;
-//                low = (low * 9 / 5) + 32;
-//            }
-
-            long roundedHigh = Math.round(high);
-            long roundedLow = Math.round(low);
-
-            String highLowStr = roundedHigh + "/" + roundedLow;
-            return highLowStr;
-        }
-
-        /**
-         * Take the String representing the complete forecast in JSON Format and
-         * pull out the data we need to construct the Strings needed for the
-         * wireframes.
-         *
-         * Fortunately parsing is easy:  constructor takes the JSON string and
-         * converts it into an Object hierarchy for us.
-         */
-
-        private String[] getWeatherDataFromJson(
-                String forecastJsonStr,
-                int numDays)
+        private Movie[] getMovieDataFromJson(final String jsonString)
                 throws JSONException {
 
-            // These are the names of the JSON objects that need to be extracted.
+            final JSONObject movieJson = new JSONObject(jsonString);
 
-            final String OWM_LIST = "list";
-            final String OWM_WEATHER = "weather";
-            final String OWM_TEMPERATURE = "temp";
-            final String OWM_MAX = "max";
-            final String OWM_MIN = "min";
-            final String OWM_DESCRIPTION = "main";
+            // Unused properties.
+            //int page = movieJson.getInt("page");
+            //int totalPages = movieJson.getInt("total_pages");
+            //int totalResults = movieJson.getInt("total_results";
 
-            JSONObject forecastJson = new JSONObject(forecastJsonStr);
-            JSONArray weatherArray = forecastJson.getJSONArray(OWM_LIST);
+            final JSONArray resultsArray = movieJson.getJSONArray("results");
+            final Movie[] movies = new Movie[resultsArray.length()];
 
-            // OWM returns daily forecasts based upon the local time of the city
-            // that is being asked for, which means that we need to know the GMT
-            // offset to translate this data properly.
-
-            // Since this data is also sent in-order and the first day is always
-            // the current day, we're going to take advantage of that to get a
-            // nice normalized UTC date for all of our weather.
-
-            Time dayTime = new Time();
-            dayTime.setToNow();
-
-            // we start at the day returned by local time. Otherwise this is a
-            // mess.
-
-            int julianStartDay = Time.getJulianDay(
-                    System.currentTimeMillis(),
-                    dayTime.gmtoff);
-
-            // now we work exclusively in UTC
-            dayTime = new Time();
-
-            String[] resultStrs = new String[numDays];
-
-            for(int i = 0; i < weatherArray.length(); i += 1) {
-
-                // For now, using the format "Day, description, hi/low"
-
-                String day;
-                String description;
-                String highAndLow;
-
-                // Get the JSON object representing the day
-
-                JSONObject dayForecast = weatherArray.getJSONObject(i);
-
-                // The date/time is returned as a long.  We need to convert that
-                // into something human-readable, since most people won't read
-                // "1400356800" as "this saturday".
-
-                long dateTime;
-
-                // Cheating to convert this to UTC time, which is what we want
-                // anyhow
-
-                dateTime = dayTime.setJulianDay(julianStartDay+i);
-                day = getReadableDateString(dateTime);
-
-                // description is in a child array called "weather", which is 1
-                // element long.
-
-                JSONObject weatherObject =
-                        dayForecast.getJSONArray(OWM_WEATHER).getJSONObject(0);
-
-                description =
-                        weatherObject.getString(OWM_DESCRIPTION);
-
-                // Temperatures are in a child object called "temp".  Try not to
-                // name variables "temp" when working with temperature.  It
-                // confuses everybody.
-
-                JSONObject temperatureObject =
-                        dayForecast.getJSONObject(OWM_TEMPERATURE);
-
-                double high = temperatureObject.getDouble(OWM_MAX);
-                double low = temperatureObject.getDouble(OWM_MIN);
-
-                highAndLow = formatHighLows(high, low);
-                resultStrs[i] = day + " - " + description + " - " + highAndLow;
+            for (int i = 0; i < resultsArray.length(); i += 1) {
+                movies[i] = new Movie(resultsArray.getJSONObject(i));
             }
 
-            return resultStrs;
+            return movies;
+        }
+    }
+
+    private class MoviePosterAdapter extends BaseAdapter {
+
+        private static final String BASE_PATH =
+                "http://image.tmdb.org/t/p/w500";
+
+        private final Context context;
+        private ArrayList<Movie> movies;
+
+        public MoviePosterAdapter(
+                final Context newContext,
+                final ArrayList<Movie> newMovies) {
+
+            context = newContext;
+            movies = newMovies;
+        }
+
+        public void replace(final Movie[] newMovies) {
+            movies.clear();
+
+            for (int i = 0; i < newMovies.length; i += 1) {
+                movies.add(newMovies[i]);
+            }
+
+            notifyDataSetChanged();
+        }
+
+        public int getCount() {
+            return movies.size();
+        }
+
+        public Movie getItem(final int position) {
+            return movies.get(position);
+        }
+
+        public long getItemId(final int position) {
+            return movies.get(position).id;
+        }
+
+        public View getView(
+                final int position,
+                final View convertView,
+                final ViewGroup parent) {
+
+            final ImageView view = convertView == null ?
+                    new ImageView(context) :
+                    (ImageView) convertView;
+
+            view.setAdjustViewBounds(true);
+
+            Picasso.with(context)
+                    .load(BASE_PATH + getItem(position).posterPath)
+                    .into(view);
+
+            return view;
         }
     }
 }
