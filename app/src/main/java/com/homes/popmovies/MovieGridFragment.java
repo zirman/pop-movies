@@ -17,11 +17,13 @@ import android.widget.BaseAdapter;
 import android.widget.GridView;
 import android.widget.ImageView;
 
+import com.jakewharton.rxbinding.widget.RxAdapterView;
 import com.squareup.picasso.Picasso;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.pcollections.TreePVector;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,7 +31,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.ArrayList;
+import java.util.Arrays;
 
 public class MovieGridFragment extends Fragment {
 
@@ -72,29 +74,18 @@ public class MovieGridFragment extends Fragment {
         final GridView gridView = (GridView)
                 rootView.findViewById(R.id.gridview_movies);
 
-        moviePosterAdapter = new MoviePosterAdapter(
-                getActivity(),
-                new ArrayList<Movie>());
+        moviePosterAdapter = new MoviePosterAdapter(getActivity());
 
         gridView.setAdapter(moviePosterAdapter);
 
-        gridView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        RxAdapterView.itemClickEvents(gridView).subscribe(event -> {
+            Intent intent = new Intent(getActivity(), DetailActivity.class);
 
-            @Override
-            public void onItemClick(
-                    AdapterView<?> parent,
-                    View view,
-                    int position,
-                    long id) {
+            intent.putExtra(
+                    DetailActivity.MOVIE_PARCEL,
+                    moviePosterAdapter.getItem(event.position()));
 
-                Intent intent = new Intent(getActivity(), DetailActivity.class);
-
-                intent.putExtra(
-                        DetailActivity.MOVIE_PARCEL,
-                        moviePosterAdapter.getItem(position));
-
-                startActivity(intent);
-            }
+            startActivity(intent);
         });
 
         return rootView;
@@ -218,23 +209,17 @@ public class MovieGridFragment extends Fragment {
                 "http://image.tmdb.org/t/p/w500";
 
         private final Context context;
-        private ArrayList<Movie> movies;
+        private TreePVector<Movie> movies;
 
-        public MoviePosterAdapter(
-                final Context newContext,
-                final ArrayList<Movie> newMovies) {
-
+        public MoviePosterAdapter(final Context newContext) {
             context = newContext;
-            movies = newMovies;
+            movies = TreePVector.empty();
         }
 
         public void replace(final Movie[] newMovies) {
-            movies.clear();
-
-            for (int i = 0; i < newMovies.length; i += 1) {
-                movies.add(newMovies[i]);
-            }
-
+            movies = newMovies != null ?
+                    TreePVector.from(Arrays.asList(newMovies)) :
+                    TreePVector.<Movie>empty();
             notifyDataSetChanged();
         }
 
