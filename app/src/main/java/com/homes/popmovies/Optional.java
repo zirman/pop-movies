@@ -5,9 +5,17 @@ import rx.functions.Function;
 
 public class Optional<A> {
 
+    public interface Func1_<B> extends Function {
+        void call(B b);
+    }
+
     // Singleton empty monad
 
-    public static final Optional empty = new Optional(null);
+    public static final Optional sEmpty = new Optional<>(null);
+
+    public static <A> Optional<A> empty() {
+        return new Optional<>(null);
+    }
 
     // Member properties
 
@@ -16,14 +24,12 @@ public class Optional<A> {
     // Monad functions
 
     public static <A> Optional<A> unit(final A option) {
-        return option != null ? new Optional(option) : empty;
+        return option != null ? new Optional<>(option) : sEmpty;
     }
 
     public <B> Optional<B> flatMap(final Func1<A, Optional<B>> fun) {
-        return option != null ? fun.call(option) : empty;
+        return option != null ? fun.call(option) : sEmpty;
     }
-
-    // Constructor
 
     private Optional(final A myOption) {
         option = myOption;
@@ -31,30 +37,21 @@ public class Optional<A> {
 
     // Convenience functions
 
-    public boolean isPresent() {
-        return option != null;
-    }
-
-    public A get() {
-        return option;
-    }
-
     public <B> Optional<B> map(final Func1<A, B> fun) {
-        return flatMap(foo -> unit(fun.call(foo)));
+        return flatMap(a -> unit(fun.call(a)));
     }
 
-    public Optional<A> filter(final Func1<A, Boolean> fun) {
-        return flatMap(foo -> fun.call(foo) ? unit(foo) : empty);
-    }
+    // Type system gets confused when Func1<A, B> -> Optional<B> and Func1_<A> -> have the same
+    // name.
 
-    public void ifPresent(final Func1_<A> fun) {
-        flatMap(foo -> {
-            fun.call(foo);
-            return empty;
+    public void map_(final Func1_<A> fun) {
+        flatMap(a -> {
+            fun.call(a);
+            return sEmpty;
         });
     }
 
-    public interface Func1_<B> extends Function {
-        void call(B b);
-    }
+//    public Optional<A> filter(final Func1<A, Boolean> fun) {
+//        return flatMap(foo -> fun.call(foo) ? unit(foo) : _empty);
+//    }
 }

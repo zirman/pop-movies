@@ -11,4 +11,5 @@
         android:defaultValue="@string/pref_sort_by_default"
         android:entries="@array/pref_sort_by_entries"
         android:entryValues="@array/pref_sort_by_values"/>
+
 </PreferenceScreen>

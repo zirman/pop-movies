@@ -7,10 +7,10 @@ import android.preference.PreferenceActivity;
 import android.preference.PreferenceManager;
 
 public class SettingsActivity extends PreferenceActivity
-        implements Preference.OnPreferenceChangeListener {
+    implements Preference.OnPreferenceChangeListener {
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         addPreferencesFromResource(R.xml.pref_general);
@@ -18,18 +18,18 @@ public class SettingsActivity extends PreferenceActivity
                 R.string.pref_sort_by_key)));
     }
 
-    private void bindPreferenceSummaryToValue(Preference preference) {
+    private void bindPreferenceSummaryToValue(final Preference preference) {
         preference.setOnPreferenceChangeListener(this);
 
         onPreferenceChange(
-                preference,
-                PreferenceManager
-                        .getDefaultSharedPreferences(preference.getContext())
-                        .getString(preference.getKey(), ""));
+            preference,
+            PreferenceManager
+                .getDefaultSharedPreferences(preference.getContext())
+                .getString(preference.getKey(), ""));
     }
 
     @Override
-    public boolean onPreferenceChange(Preference preference, Object value) {
+    public boolean onPreferenceChange(final Preference preference, final Object value) {
         final String stringValue = value.toString();
 
         if (preference instanceof ListPreference) {

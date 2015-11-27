@@ -7,18 +7,21 @@ import android.view.Menu;
 import android.view.MenuItem;
 
 public class DetailActivity extends AppCompatActivity {
-    public static final String MOVIE_PARCEL = "movie";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_detail);
 
+        if (savedInstanceState != null)
+            return;
+
         getSupportFragmentManager()
-                .beginTransaction()
-                .add(R.id.container, DetailFragment.newInstance(
-                        (Movie) getIntent().getParcelableExtra(MOVIE_PARCEL)))
-                .commit();
+            .beginTransaction()
+            .add(R.id.container,
+                DetailFragment.newInstance(
+                    getIntent().getParcelableExtra(DetailFragment.MOVIE_PARCEL)))
+            .commit();
     }
 
     @Override

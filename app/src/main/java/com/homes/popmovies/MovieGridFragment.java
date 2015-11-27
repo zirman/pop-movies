@@ -1,10 +1,8 @@
 package com.homes.popmovies;
 
 import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
@@ -12,42 +10,31 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.GridView;
-import android.widget.ImageView;
 
+import com.homes.popmovies.data.MovieContract.*;
 import com.jakewharton.rxbinding.widget.RxAdapterView;
-import com.squareup.picasso.Picasso;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.pcollections.TreePVector;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Arrays;
+
+import rx.Observable;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.subjects.PublishSubject;
 
 public class MovieGridFragment extends Fragment {
+    private static final String LOG_TAG = MovieGridFragment.class.getSimpleName();
 
-    private static final String LOG_TAG =
-            MovieGridFragment.class.getSimpleName();
+    private GridView mGridView;
+    private Cursor mCursor;
+    private BaseAdapter mMoviePosterAdapter;
 
-    private MoviePosterAdapter moviePosterAdapter;
-
-    public static MovieGridFragment newInstance() {
-        final MovieGridFragment fragment = new MovieGridFragment();
-        fragment.setArguments(new Bundle());
-        return fragment;
-    }
-
-    public MovieGridFragment() {
-    }
+    private final PublishSubject<Movie> mItemClickObservable =
+        PublishSubject.<Movie>create();
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -60,130 +47,112 @@ public class MovieGridFragment extends Fragment {
         updateMovies();
     }
 
+    public Observable<Movie> getItemClickObservable() {
+        return mItemClickObservable;
+    }
+
     @Override
     public View onCreateView(
-            LayoutInflater inflater,
-            ViewGroup container,
-            Bundle savedInstanceState) {
+        LayoutInflater inflater,
+        ViewGroup container,
+        Bundle savedInstanceState) {
 
         final View rootView = inflater.inflate(
-                R.layout.fragment_movie_grid,
-                container,
-                false);
+            R.layout.fragment_movie_grid,
+            container,
+            false);
 
-        final GridView gridView = (GridView)
-                rootView.findViewById(R.id.gridview_movies);
+        mGridView = (GridView) rootView.findViewById(R.id.gridview_movies);
 
-        moviePosterAdapter = new MoviePosterAdapter(getActivity());
+        RxAdapterView.itemClickEvents(mGridView).subscribe(adapterViewItemClickEvent -> {
 
-        gridView.setAdapter(moviePosterAdapter);
+            // Hacky way to get Movies from adapters.  Couldn't figure out a better way.
+            // Maybe with using MatrixCursor I can have both adapters follow the cursor pattern.
 
-        RxAdapterView.itemClickEvents(gridView).subscribe(event -> {
-            Intent intent = new Intent(getActivity(), DetailActivity.class);
+            final int position = adapterViewItemClickEvent.position();
 
-            intent.putExtra(
-                    DetailActivity.MOVIE_PARCEL,
-                    moviePosterAdapter.getItem(event.position()));
+            if (mCursor != null) {
 
-            startActivity(intent);
+                if (mCursor.moveToPosition(position)) {
+                    mItemClickObservable.onNext(new Movie(mCursor));
+                }
+
+            } else {
+                mItemClickObservable
+                    .onNext(((MoviePosterAdapter) mMoviePosterAdapter).getItem(position));
+            }
         });
 
         return rootView;
     }
 
     private void updateMovies() {
+        Log.e(LOG_TAG, "In updateMovies");
 
-        final SharedPreferences sharedPref =
-                PreferenceManager.getDefaultSharedPreferences(
-                        getActivity());
-
-        new FetchMoviesTask().execute(sharedPref.getString(
+        final String sortBy = PreferenceManager.getDefaultSharedPreferences(getActivity())
+            .getString(
                 getString(R.string.pref_sort_by_key),
-                getString(R.string.pref_sort_by_default)));
+                getString(R.string.pref_sort_by_default));
+
+        (sortBy.equals(getString(R.string.sort_by_favorites)) ?
+            getFavorites() :
+            fetchMovies(sortBy).observeOn(AndroidSchedulers.mainThread()))
+            .subscribe(mGridView::setAdapter);
     }
 
-    private class FetchMoviesTask extends AsyncTask<String, Void, Movie[]> {
+    private Observable<BaseAdapter> getFavorites() {
+        final Context context = getContext();
 
-        private static final String BASE_URI =
-                "http://api.themoviedb.org/3/discover/movie?sort_by=&api_key=";
+        mCursor = context.getContentResolver().query(
+            FavoriteEntry.buildFavoritesUri(),
+            null,
+            null,
+            null,
+            null);
 
-        @Override
-        protected Movie[] doInBackground(final String ... sortBy) {
-            HttpURLConnection urlConnection = null;
-            BufferedReader reader = null;
-            Movie[] movies;
-            try {
+        mMoviePosterAdapter = null;
 
-                final URL url = new URL(
-                        Uri.parse(BASE_URI)
-                                .buildUpon()
-                                .appendQueryParameter(
-                                        "sort_by",
-                                        sortBy[0])
-                                .appendQueryParameter(
-                                        "api_key",
-                                        getString(R.string.tmdb_api_key))
-                                .build()
-                                .toString());
+        return Observable.just(new FavoritesAdapter(
+            context,
+            mCursor,
+            0));
+    }
 
-                urlConnection = (HttpURLConnection) url.openConnection();
-                urlConnection.setRequestMethod("GET");
-                urlConnection.connect();
+    private Observable<BaseAdapter> fetchMovies(final String sortBy) {
 
-                final InputStream inputStream = urlConnection.getInputStream();
-                final StringBuffer buffer = new StringBuffer();
+        try {
+            mCursor = null;
 
-                if (inputStream == null) {
-                    throw new IOException("null input stream");
-                }
+            Observable<BaseAdapter> o = Http.request(new URL(
+                Uri.parse("http://api.themoviedb.org/3/discover/movie?sort_by=&api_key=")
+                    .buildUpon()
+                    .appendQueryParameter(
+                        "sort_by",
+                        sortBy)
+                    .appendQueryParameter(
+                        "api_key",
+                        getString(R.string.tmdb_api_key))
+                    .build()
+                    .toString()))
+                .map(MovieGridFragment::getMovieDataFromJson)
+                .map(movies -> new MoviePosterAdapter(getContext(), movies));
 
-                reader = new BufferedReader(new InputStreamReader(inputStream));
-                String line;
+            o.subscribeOn(AndroidSchedulers.mainThread())
+                .subscribe(s -> {
+                    mMoviePosterAdapter = s;
+                });
 
-                while ((line = reader.readLine()) != null) {
-                    buffer.append(line + "\n");
-                }
+            return o;
 
-                try {
-                    movies = getMovieDataFromJson(buffer.toString());
-
-                } catch (JSONException exception) {
-                    Log.e(LOG_TAG, exception.getMessage(), exception);
-                    exception.printStackTrace();
-                    movies = null;
-                }
-
-            } catch (IOException exception) {
-                Log.e(LOG_TAG, "Error ", exception);
-                movies = null;
-
-            } finally {
-
-                if (urlConnection != null) {
-                    urlConnection.disconnect();
-                }
-
-                if (reader != null) {
-
-                    try {
-                        reader.close();
-
-                    } catch (final IOException e) {
-                        Log.e(LOG_TAG, "Error closing stream", e);
-                    }
-                }
-            }
-
-            return movies;
+        } catch (Exception error) {
+            Log.e(LOG_TAG, error.getMessage(), error);
+            return Observable.empty();
         }
+    }
 
-        @Override
-        protected void onPostExecute(final Movie[] movies) {
-            moviePosterAdapter.replace(movies);
-        }
+    static private Movie[] getMovieDataFromJson(final String jsonString) {
 
-        private Movie[] getMovieDataFromJson(final String jsonString)
-                throws JSONException {
+        try {
 
             final JSONObject movieJson = new JSONObject(jsonString);
 
@@ -200,57 +169,10 @@ public class MovieGridFragment extends Fragment {
             }
 
             return movies;
-        }
-    }
 
-    private class MoviePosterAdapter extends BaseAdapter {
-
-        private static final String BASE_PATH =
-                "http://image.tmdb.org/t/p/w500";
-
-        private final Context context;
-        private TreePVector<Movie> movies;
-
-        public MoviePosterAdapter(final Context newContext) {
-            context = newContext;
-            movies = TreePVector.empty();
-        }
-
-        public void replace(final Movie[] newMovies) {
-            movies = newMovies != null ?
-                    TreePVector.from(Arrays.asList(newMovies)) :
-                    TreePVector.<Movie>empty();
-            notifyDataSetChanged();
-        }
-
-        public int getCount() {
-            return movies.size();
-        }
-
-        public Movie getItem(final int position) {
-            return movies.get(position);
-        }
-
-        public long getItemId(final int position) {
-            return movies.get(position).id;
-        }
-
-        public View getView(
-                final int position,
-                final View convertView,
-                final ViewGroup parent) {
-
-            final ImageView view = convertView == null ?
-                    new ImageView(context) :
-                    (ImageView) convertView;
-
-            view.setAdjustViewBounds(true);
-
-            Picasso.with(context)
-                    .load(BASE_PATH + getItem(position).posterPath)
-                    .into(view);
-
-            return view;
+        } catch (JSONException error) {
+            Log.e(LOG_TAG, error.getMessage(), error);
+            return null;
         }
     }
 }

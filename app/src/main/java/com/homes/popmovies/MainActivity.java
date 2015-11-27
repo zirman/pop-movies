@@ -7,19 +7,31 @@ import android.view.Menu;
 import android.view.MenuItem;
 
 public class MainActivity extends AppCompatActivity {
+    //static private final String LOG_TAG = MainActivity.class.getSimpleName();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        if (savedInstanceState == null) {
+        final MovieGridFragment movieGridFragment = (MovieGridFragment)
+            getSupportFragmentManager().findFragmentById(R.id.fragment_movie_grid);
 
-            getSupportFragmentManager()
+        movieGridFragment.getItemClickObservable().subscribe(movie -> {
+
+            if (findViewById(R.id.fragment_detail) == null) {
+                Intent intent = new Intent(this, DetailActivity.class);
+                intent.putExtra(DetailFragment.MOVIE_PARCEL, movie);
+                startActivity(intent);
+
+            } else {
+
+                getSupportFragmentManager()
                     .beginTransaction()
-                    .add(R.id.container, MovieGridFragment.newInstance())
+                    .replace(R.id.fragment_detail, DetailFragment.newInstance(movie))
                     .commit();
-        }
+            }
+        });
     }
 
     @Override
