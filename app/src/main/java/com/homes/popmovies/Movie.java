@@ -16,7 +16,6 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Locale;
 
 // Immutable data transfer object for movies
@@ -46,16 +45,6 @@ public class Movie implements Parcelable {
             return -1;
         }
     }
-
-//    static private String dateToString(final Date date) {
-//
-//        try {
-//            return dateToString()
-//
-//        } catch (final ParseException error) {
-//            return "";
-//        }
-//    }
 
     public static final Creator<Movie> CREATOR = new Creator<Movie>() {
         @Override
@@ -159,9 +148,8 @@ public class Movie implements Parcelable {
         dest.writeInt(voteCount);
     }
 
-    public ContentValues getContentValues() {
+    public ContentValues toContentValues() {
         final ContentValues movieValues = new ContentValues();
-
         movieValues.put(MovieEntry.COLUMN_ID, id);
         movieValues.put(MovieEntry.COLUMN_ADULT, adult);
         movieValues.put(MovieEntry.COLUMN_BACKDROP_PATH, backdropPath);
@@ -176,7 +164,6 @@ public class Movie implements Parcelable {
         movieValues.put(MovieEntry.COLUMN_VIDEO, video);
         movieValues.put(MovieEntry.COLUMN_VOTE_AVERAGE, voteAverage);
         movieValues.put(MovieEntry.COLUMN_VOTE_COUNT, voteCount);
-
         return movieValues;
     }
 }

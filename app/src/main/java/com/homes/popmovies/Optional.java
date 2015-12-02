@@ -1,13 +1,8 @@
 package com.homes.popmovies;
 
 import rx.functions.Func1;
-import rx.functions.Function;
 
 public class Optional<A> {
-
-    public interface Func1_<B> extends Function {
-        void call(B b);
-    }
 
     // Singleton empty monad
 
@@ -23,7 +18,7 @@ public class Optional<A> {
 
     // Monad functions
 
-    public static <A> Optional<A> unit(final A option) {
+    public static <A> Optional<A> bind(final A option) {
         return option != null ? new Optional<>(option) : sEmpty;
     }
 
@@ -38,20 +33,6 @@ public class Optional<A> {
     // Convenience functions
 
     public <B> Optional<B> map(final Func1<A, B> fun) {
-        return flatMap(a -> unit(fun.call(a)));
+        return flatMap(a -> bind(fun.call(a)));
     }
-
-    // Type system gets confused when Func1<A, B> -> Optional<B> and Func1_<A> -> have the same
-    // name.
-
-    public void map_(final Func1_<A> fun) {
-        flatMap(a -> {
-            fun.call(a);
-            return sEmpty;
-        });
-    }
-
-//    public Optional<A> filter(final Func1<A, Boolean> fun) {
-//        return flatMap(foo -> fun.call(foo) ? unit(foo) : _empty);
-//    }
 }

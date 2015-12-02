@@ -1,14 +1,26 @@
 package com.homes.popmovies;
 
 import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.Context;
+import android.content.Intent;
 import android.database.Cursor;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentTransaction;
+import android.support.v4.view.MenuItemCompat;
+import android.support.v7.widget.ShareActionProvider;
 import android.text.format.DateUtils;
 import android.util.Log;
+import android.util.Pair;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -22,16 +34,20 @@ import com.squareup.picasso.Picasso;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.pcollections.TreePVector;
 
-import java.net.MalformedURLException;
+import java.io.IOException;
 import java.net.URL;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 
 import rx.Observable;
+import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Func2;
+import rx.schedulers.Schedulers;
+import rx.subjects.BehaviorSubject;
 
 public class DetailFragment extends Fragment {
     static public final String MOVIE_PARCEL = "movie";
@@ -47,32 +63,10 @@ public class DetailFragment extends Fragment {
         return fragment;
     }
 
-    static private class Detail {
-        public final int id;
-        public final int budget;
-        public final String homepage;
-        public final String imdbId;
-        public final int revenue;
-        public final int runtime;
-        public final String status;
-        public final String tagline;
-
-        public Detail(final JSONObject detail) throws JSONException, ParseException {
-            id = detail.getInt("id");
-            budget = detail.getInt("budget");
-            homepage = detail.getString("homepage");
-            imdbId = detail.getString("imdb_id");
-            revenue = detail.getInt("revenue");
-            runtime = detail.getInt("runtime");
-            status = detail.getString("status");
-            tagline = detail.getString("tagline");
-        }
-    }
-
-    static private Detail getDetailDataFromJson(final String jsonString) {
+    static private MovieDetail getDetailDataFromJson(final String jsonString) {
 
         try {
-            return new Detail(new JSONObject(jsonString));
+            return new MovieDetail(new JSONObject(jsonString));
 
         } catch (final JSONException | ParseException error) {
             Log.e(LOG_TAG, error.getMessage(), error);
@@ -80,88 +74,133 @@ public class DetailFragment extends Fragment {
         }
     }
 
-    static private Video[] getVideoDataFromJson(final String jsonString) {
+    static private TreePVector<Video> getVideoDataFromJson(final String jsonString) {
 
         try {
-            final JSONObject movieJson = new JSONObject(jsonString);
-            final JSONArray resultsArray = movieJson.getJSONArray("results");
-            final Video[] videos = new Video[resultsArray.length()];
+            final JSONArray resultsArray = new JSONObject(jsonString).getJSONArray("results");
+            TreePVector<Video> videos = TreePVector.empty();
 
             for (int i = 0; i < resultsArray.length(); i += 1) {
-                videos[i] = new Video(resultsArray.getJSONObject(i));
+                videos = videos.plus(new Video(resultsArray.getJSONObject(i)));
             }
 
             return videos;
 
         } catch (final JSONException error) {
             Log.e(LOG_TAG, error.getMessage(), error);
-            return null;
+            return TreePVector.empty();
         }
     }
 
-    static private Review[] getReviewDataFromJson(final String jsonString) {
+    static private TreePVector<Review> getReviewDataFromJson(final String jsonString) {
 
         try {
-            final JSONObject movieJson = new JSONObject(jsonString);
-            final JSONArray resultsArray = movieJson.getJSONArray("results");
-            final Review[] reviews = new Review[resultsArray.length()];
+            final JSONArray resultsArray = new JSONObject(jsonString).getJSONArray("results");
+            TreePVector<Review> reviews = TreePVector.empty();
 
             for (int i = 0; i < resultsArray.length(); i += 1) {
-                reviews[i] = new Review(resultsArray.getJSONObject(i));
+                reviews = reviews.plus(new Review(resultsArray.getJSONObject(i)));
             }
 
             return reviews;
 
         } catch (final JSONException error) {
             Log.e(LOG_TAG, error.getMessage(), error);
-            return null;
+            return TreePVector.empty();
         }
     }
 
     // Instance definitions.
 
-    private Optional<Movie> mMovie = Optional.empty();
+    private final BehaviorSubject<Movie> mMovie = BehaviorSubject.<Movie>create();
+    private final BehaviorSubject<View> mRootView = BehaviorSubject.<View>create();
+
+    private Subscription mRenderSubscription;
+    private Subscription mMovieDetailSubscription;
+    private Subscription mVideoSubscription;
+    private Subscription mReviewSubscription;
+    private Subscription mShareActionProviderSubscription;
+
+    public DetailFragment() {
+        super();
+        setHasOptionsMenu(true);
+    }
+
+    private void setRenderSubscription(final Subscription renderSubscription) {
+
+        if (mRenderSubscription != null) {
+            mRenderSubscription.unsubscribe();
+        }
+
+        mRenderSubscription = renderSubscription;
+    }
+
+    private void setMovieDetailSubscription(final Subscription movieDetailSubscription) {
+
+        if (mMovieDetailSubscription != null) {
+            mMovieDetailSubscription.unsubscribe();
+        }
+
+        mMovieDetailSubscription = movieDetailSubscription;
+    }
+
+    private void setVideoSubscription(final Subscription videoSubscription) {
+
+        if (mVideoSubscription != null) {
+            mVideoSubscription.unsubscribe();
+        }
+
+        mVideoSubscription = videoSubscription;
+    }
+
+    private void setReviewSubscription(final Subscription reviewSubscription) {
+
+        if (mReviewSubscription != null) {
+            mReviewSubscription.unsubscribe();
+        }
+
+        mReviewSubscription = reviewSubscription;
+    }
+
+    private void setShareActionProviderSubscription(final Subscription shareActionProviderSubscription) {
+
+        if (mShareActionProviderSubscription != null) {
+            mShareActionProviderSubscription.unsubscribe();
+        }
+
+        mShareActionProviderSubscription = shareActionProviderSubscription;
+    }
 
     @Override
     public void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mMovie.onNext(getArguments().getParcelable(MOVIE_PARCEL));
 
-        mMovie = Optional.unit(getArguments())
-            .map(args -> args.getParcelable(MOVIE_PARCEL));
-    }
+        setRenderSubscription(Observable.combineLatest(
+            mMovie,
+            mRootView,
+            (Func2<Movie, View, Pair<Movie, View>>) Pair::new).subscribe(pair -> {
 
-    @Override
-    public View onCreateView(
-        LayoutInflater inflater,
-        ViewGroup container,
-        Bundle savedInstanceState) {
-        super.onCreateView(inflater, container, savedInstanceState);
-
-        final View rootView = inflater.inflate(
-            R.layout.fragment_detail,
-            container,
-            false);
-
-        mMovie.map(movie -> {
+            final Movie movie = pair.first;
+            final View rootView = pair.second;
             final String addFavoritesText = getString(R.string.add_favorites_text);
             final String removeFavoritesText = getString(R.string.remove_favorites_text);
-            final ContentResolver mContentResolver = getContext().getContentResolver();
-
-            Button button = (Button) rootView.findViewById(R.id.favorite_button);
+            final ContentResolver contentResolver = getContext().getContentResolver();
+            final Button button = (Button) rootView.findViewById(R.id.favorite_button);
 
             RxView.clickEvents(button).subscribe(viewClickEvent -> {
 
                 if (button.getText() == addFavoritesText) {
 
-                    mContentResolver.insert(
+                    contentResolver.insert(
                         FavoriteEntry.buildFavoritesUri(),
-                        movie.getContentValues());
+                        movie.toContentValues());
 
                     button.setText(removeFavoritesText);
 
                 } else {
 
-                    mContentResolver.delete(
+                    contentResolver.delete(
                         FavoriteEntry.buildFavoriteUri(movie.id),
                         null,
                         null);
@@ -176,23 +215,8 @@ public class DetailFragment extends Fragment {
                 .load(BASE_PATH + movie.posterPath)
                 .into(((ImageView) rootView.findViewById(R.id.poster_image)));
 
-            // Show abbreviated date when release was this year.
-            // Otherwise show year.
-
-            Calendar cal = Calendar.getInstance();
-            cal.setTime(new Date());
-            cal.get(Calendar.YEAR);
-            cal.set(Calendar.MONTH, 0);
-            cal.set(Calendar.DAY_OF_MONTH, 0);
-            cal.set(Calendar.HOUR_OF_DAY, 0);
-
             ((TextView) rootView.findViewById(R.id.year_text))
-                .setText((cal.getTimeInMillis() < movie.releaseDate) ?
-                    DateUtils.formatDateTime(
-                        getContext(),
-                        movie.releaseDate,
-                        DateUtils.FORMAT_ABBREV_ALL) :
-                    String.valueOf(cal.get(Calendar.YEAR)));
+                .setText(formattedDate(movie.releaseDate));
 
             ((TextView) rootView.findViewById(R.id.rating_text))
                 .setText(String.valueOf(movie.voteAverage) + "/10");
@@ -200,134 +224,282 @@ public class DetailFragment extends Fragment {
             ((TextView) rootView.findViewById(R.id.overview_text))
                 .setText(movie.overview);
 
-            fetchDetails(movie.id)
+            setMovieDetailSubscription(Observable.<MovieDetail>create(subscriber -> {
+                final MovieDetail movieDetail = fetchMovieDetails(movie.id);
+
+                if (movieDetail != null) {
+                    subscriber.onNext(movieDetail);
+                }
+
+                subscriber.onCompleted();
+            }).subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(detail -> {
+                .subscribe(movieDetail -> {
                     ((TextView) rootView.findViewById(R.id.runtime_text))
                         .setText(String.format(
                             getContext().getString(R.string.format_runtime),
-                            detail.runtime));
-                });
+                            movieDetail.runtime));
+                }));
 
-            fetchVideos(movie.id)
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(videos -> {
-                    FragmentTransaction transaction = getChildFragmentManager()
-                        .beginTransaction();
+            Observable<Cursor> videoObservable = Observable.<Cursor>create(subscriber -> {
+                subscriber.onNext(fetchVideos(movie.id));
+                subscriber.onCompleted();
+            }).subscribeOn(Schedulers.io());
 
-                    for (final Video video : videos) {
+            setVideoSubscription(videoObservable.observeOn(Schedulers.computation())
+                .subscribe(cursor -> {
+
+                    final FragmentTransaction transaction =
+                        getChildFragmentManager().beginTransaction();
+
+                    for (int i = 0; cursor.moveToPosition(i); i += 1) {
+                        final Video video = new Video(cursor);
+
                         transaction.add(
                             R.id.layout_videos,
                             VideoFragment.newInstance(video));
                     }
 
                     transaction.commit();
-                });
+                    cursor.close();
+                }));
 
-            fetchReviews(movie.id)
+            setShareActionProviderSubscription(Observable.combineLatest(
+                videoObservable,
+                mShareActionProvider,
+                (Func2<Cursor, ShareActionProvider, Pair<Cursor, ShareActionProvider>>) Pair::new)
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe((final Review[] reviews) -> {
-                    FragmentTransaction transaction = getChildFragmentManager()
-                        .beginTransaction();
+                .subscribe(pair2 -> {
 
-                    for (final Review review : reviews) {
+                    final Cursor cursor = pair2.first;
+                    final ShareActionProvider shareActionProvider = pair2.second;
+
+                    if (cursor.moveToFirst()) {
+                        shareActionProvider.setShareIntent(createShareVideoIntent(new Video(cursor)));
+                    }
+                }));
+
+            setReviewSubscription(Observable.<Cursor>create(subscriber -> {
+                subscriber.onNext(fetchReviews(movie.id));
+                subscriber.onCompleted();
+            }).subscribeOn(Schedulers.io())
+                .observeOn(Schedulers.computation())
+                .subscribe(cursor -> {
+
+                    final FragmentTransaction transaction =
+                        getChildFragmentManager().beginTransaction();
+
+                    for (int i = 0; cursor.moveToPosition(i); i += 1) {
+
                         transaction.add(
                             R.id.layout_reviews,
-                            ReviewFragment.newInstance(review));
+                            ReviewFragment.newInstance(new Review(cursor)));
                     }
 
                     transaction.commit();
-                });
+                }));
 
-
-            Cursor cursor = mContentResolver.query(
+            final Cursor cursor = contentResolver.query(
                 FavoriteEntry.buildFavoriteUri(movie.id),
                 null,
                 null,
                 null,
                 null);
 
-            if (cursor != null) {
-                button.setText(
-                    cursor.moveToFirst() ?
-                        removeFavoritesText :
-                        addFavoritesText);
-            }
+            button.setText(
+                (cursor != null && cursor.moveToFirst()) ?
+                    removeFavoritesText :
+                    addFavoritesText);
+        }));
+    }
 
-            return movie;
-        });
+    @Override
+    public View onCreateView(
+        LayoutInflater inflater,
+        ViewGroup container,
+        Bundle savedInstanceState) {
+        super.onCreateView(inflater, container, savedInstanceState);
 
+        final View rootView = inflater.inflate(
+            R.layout.fragment_detail,
+            container,
+            false);
+
+        mRootView.onNext(rootView);
         return rootView;
+    }
+
+    private BehaviorSubject<ShareActionProvider> mShareActionProvider =
+        BehaviorSubject.<ShareActionProvider>create();
+
+    @Override
+    public void onCreateOptionsMenu(final Menu menu, final MenuInflater inflater) {
+        inflater.inflate(R.menu.detail_fragment, menu);
+        MenuItem menuItem = menu.findItem(R.id.action_share);
+        mShareActionProvider.onNext((ShareActionProvider) MenuItemCompat.getActionProvider(menuItem));
+    }
+
+    private Intent createShareVideoIntent(final Video video) {
+        final Intent intent = new Intent(Intent.ACTION_SEND);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
+        }
+
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TEXT, video.toYoutubeUri().toString());
+        return intent;
     }
 
     @Override
     public void onSaveInstanceState(final Bundle outState) {
         super.onSaveInstanceState(outState);
-        mMovie.map_(movie -> outState.putParcelable(MOVIE_PARCEL, movie));
+        mMovie.subscribe(movie -> outState.putParcelable(MOVIE_PARCEL, movie));
     }
 
-    private Observable<Detail> fetchDetails(final int id) {
+    private MovieDetail fetchMovieDetails(final int id) {
 
-        try {
+        if (isConnected()) {
 
-            return Http.request(new URL(
-                Uri.parse("http://api.themoviedb.org/3/movie/")
-                    .buildUpon()
-                    .appendPath(String.valueOf(id))
-                    .appendQueryParameter(
-                        "api_key",
-                        getString(R.string.tmdb_api_key))
-                    .build()
-                    .toString()))
-                .map(DetailFragment::getDetailDataFromJson);
+            try {
 
-        } catch (final MalformedURLException error) {
-            Log.e(LOG_TAG, error.getMessage(), error);
-            return Observable.empty();
+                final String json = Http.request(new URL(
+                    Uri.parse("http://api.themoviedb.org/3/movie/")
+                        .buildUpon()
+                        .appendPath(String.valueOf(id))
+                        .appendQueryParameter(
+                            "api_key",
+                            getString(R.string.tmdb_api_key))
+                        .build()
+                        .toString()));
+
+                return getDetailDataFromJson(json);
+
+            } catch (final IOException error) {
+                Log.e(LOG_TAG, error.getMessage(), error);
+                error.printStackTrace();
+            }
         }
+
+        return null;
     }
 
-    private Observable<Video[]> fetchVideos(final int id) {
+    private Cursor fetchVideos(final int id) {
 
-        try {
+        if (isConnected()) {
 
-            return Http.request(new URL(
-                Uri.parse("http://api.themoviedb.org/3/movie/")
-                    .buildUpon()
-                    .appendPath(String.valueOf(id))
-                    .appendPath("videos")
-                    .appendQueryParameter(
-                        "api_key",
-                        getString(R.string.tmdb_api_key))
-                    .build()
-                    .toString()))
-                .map(DetailFragment::getVideoDataFromJson);
+            try {
 
-        } catch (final MalformedURLException error) {
-            Log.e(LOG_TAG, error.getMessage(), error);
-            return Observable.empty();
+                final String json = Http.request(new URL(
+                    Uri.parse("http://api.themoviedb.org/3/movie/")
+                        .buildUpon()
+                        .appendPath(String.valueOf(id))
+                        .appendPath("videos")
+                        .appendQueryParameter(
+                            "api_key",
+                            getString(R.string.tmdb_api_key))
+                        .build()
+                        .toString()));
+
+                final TreePVector<ContentValues> videos =
+                    Transform.map(getVideoDataFromJson(json), Video::toContentValues);
+
+                final ContentValues[] contentValues = new ContentValues[videos.size()];
+                videos.toArray(contentValues);
+
+                getContext().getContentResolver().bulkInsert(
+                    MovieEntry.buildVideosUri(id),
+                    contentValues);
+
+            } catch (final IOException error) {
+                error.printStackTrace();
+            }
         }
+
+        return getContext().getContentResolver().query(
+            MovieEntry.buildVideosUri(id),
+            null,
+            null,
+            null,
+            null);
     }
 
-    private Observable<Review[]> fetchReviews(final int id) {
+    private Cursor fetchReviews(final int id) {
 
-        try {
+        if (isConnected()) {
 
-            return Http.request(new URL(
-                Uri.parse("http://api.themoviedb.org/3/movie/")
-                    .buildUpon()
-                    .appendPath(String.valueOf(id))
-                    .appendPath("reviews")
-                    .appendQueryParameter(
-                        "api_key",
-                        getString(R.string.tmdb_api_key))
-                    .build()
-                    .toString()))
-                .map(DetailFragment::getReviewDataFromJson);
+            try {
 
-        } catch (final MalformedURLException error) {
-            Log.e(LOG_TAG, error.getMessage(), error);
-            return Observable.empty();
+                final String json = Http.request(new URL(
+                    Uri.parse("http://api.themoviedb.org/3/movie/")
+                        .buildUpon()
+                        .appendPath(String.valueOf(id))
+                        .appendPath("reviews")
+                        .appendQueryParameter(
+                            "api_key",
+                            getString(R.string.tmdb_api_key))
+                        .build()
+                        .toString()));
+
+                final TreePVector<ContentValues> reviews =
+                    Transform.map(getReviewDataFromJson(json), Review::toContentValues);
+
+                final ContentValues[] contentValues = new ContentValues[reviews.size()];
+                reviews.toArray(contentValues);
+
+                getContext().getContentResolver().bulkInsert(
+                    MovieEntry.buildReviewsUri(id),
+                    contentValues);
+
+            } catch (final IOException error) {
+                error.printStackTrace();
+            }
         }
+
+        return getContext().getContentResolver().query(
+            MovieEntry.buildReviewsUri(id),
+            null,
+            null,
+            null,
+            null);
+    }
+
+    private String formattedDate(long releaseDate) {
+
+        // Show abbreviated date when release date was this year.
+        // Otherwise show release date as year.
+
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(new Date());
+        cal.get(Calendar.YEAR);
+        cal.set(Calendar.MONTH, 0);
+        cal.set(Calendar.DAY_OF_MONTH, 0);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+
+        return (cal.getTimeInMillis() < releaseDate) ?
+            DateUtils.formatDateTime(
+                getContext(),
+                releaseDate,
+                DateUtils.FORMAT_ABBREV_ALL) :
+            String.valueOf(cal.get(Calendar.YEAR));
+    }
+
+    private boolean isConnected() {
+
+        final NetworkInfo networkInfo =
+            ((ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE))
+                .getActiveNetworkInfo();
+
+        return networkInfo != null && networkInfo.isConnected();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        setRenderSubscription(null);
+        setMovieDetailSubscription(null);
+        setReviewSubscription(null);
+        setVideoSubscription(null);
+        setShareActionProviderSubscription(null);
     }
 }

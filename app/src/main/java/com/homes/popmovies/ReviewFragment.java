@@ -26,7 +26,7 @@ public class ReviewFragment extends Fragment {
     public void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        mReview = Optional.unit(getArguments())
+        mReview = Optional.bind(getArguments())
             .map(args -> args.getParcelable(REVIEW_PARCEL));
     }
 

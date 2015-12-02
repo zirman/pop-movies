@@ -1,7 +1,11 @@
 package com.homes.popmovies;
 
+import android.content.ContentValues;
+import android.database.Cursor;
 import android.os.Parcel;
 import android.os.Parcelable;
+
+import com.homes.popmovies.data.MovieContract.ReviewEntry;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -40,6 +44,13 @@ public class Review implements Parcelable {
         url = in.readString();
     }
 
+    public Review(final Cursor cursor) {
+        id = cursor.getString(cursor.getColumnIndex(ReviewEntry.COLUMN_ID));
+        author = cursor.getString(cursor.getColumnIndex(ReviewEntry.COLUMN_AUTHOR));
+        content = cursor.getString(cursor.getColumnIndex(ReviewEntry.COLUMN_CONTENT));
+        url = cursor.getString(cursor.getColumnIndex(ReviewEntry.COLUMN_URL));
+    }
+
     @Override
     public int describeContents() {
         return 0;
@@ -51,5 +62,14 @@ public class Review implements Parcelable {
         dest.writeString(author);
         dest.writeString(content);
         dest.writeString(url);
+    }
+
+    public ContentValues toContentValues() {
+        final ContentValues videoValues = new ContentValues();
+        videoValues.put(ReviewEntry.COLUMN_ID, id);
+        videoValues.put(ReviewEntry.COLUMN_AUTHOR, author);
+        videoValues.put(ReviewEntry.COLUMN_CONTENT, content);
+        videoValues.put(ReviewEntry.COLUMN_URL, url);
+        return videoValues;
     }
 }

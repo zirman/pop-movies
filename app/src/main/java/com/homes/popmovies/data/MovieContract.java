@@ -42,6 +42,10 @@ public class MovieContract {
             .push(PATH_MOVIE)
             .join("/");
 
+        static public Uri buildMoviesUri() {
+            return CONTENT_URI;
+        }
+
         static public Uri buildMovieUri(final int id) {
             return CONTENT_URI
                 .buildUpon()
@@ -63,8 +67,10 @@ public class MovieContract {
                 .build();
         }
 
-        static public String getMovieIdFromUri(final Uri uri) {
-            return uri.getPathSegments().get(1);
+        static public String uriToMovieId(final Uri uri) {
+            return uri.getPathSegments().get(0).equalsIgnoreCase(PATH_MOVIE) ?
+                uri.getPathSegments().get(1) :
+                "";
         }
     }
 
@@ -142,8 +148,10 @@ public class MovieContract {
                 .build();
         }
 
-        static public String getMovieIdFromUri(final Uri uri) {
-            return uri.getPathSegments().get(1);
+        static public String uriToMovieId(final Uri uri) {
+            return uri.getPathSegments().get(0).equalsIgnoreCase(PATH_FAVORITES) ?
+                uri.getPathSegments().get(1) :
+                "";
         }
     }
 }

@@ -2,7 +2,6 @@ package com.homes.popmovies;
 
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
@@ -31,7 +30,7 @@ public class VideoFragment extends Fragment {
     public void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        mVideo = Optional.unit(getArguments())
+        mVideo = Optional.bind(getArguments())
             .map(args -> args.getParcelable(VIDEO_PARCEL));
     }
 
@@ -47,29 +46,20 @@ public class VideoFragment extends Fragment {
             container,
             false);
 
-        mVideo.map(video -> {
+        mVideo.flatMap(video -> {
             ((TextView) rootView.findViewById(R.id.video_description)).setText(video.name);
 
             RxView.clickEvents(rootView).subscribe(viewClickEvent -> {
 
                 try {
-
-                    startActivity(new Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("vnd.youtube:" + video.key)));
+                    startActivity(new Intent(Intent.ACTION_VIEW, video.toVndYoutubeUri()));
 
                 } catch (final ActivityNotFoundException error) {
-
-                    startActivity(new Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://www.youtube.com/watch")
-                            .buildUpon()
-                            .appendQueryParameter("v", video.key)
-                            .build()));
+                    startActivity(new Intent(Intent.ACTION_VIEW, video.toYoutubeUri()));
                 }
             });
 
-            return video;
+            return Optional.empty();
         });
 
         return rootView;

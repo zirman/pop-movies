@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+    <style name="SettingsTheme" parent="@android:style/Theme.Material.Light.DarkActionBar">
+        <item name="android:colorPrimary">@color/pop_movies_primary</item>
+        <item name="android:colorPrimaryDark">@color/pop_movies_primary_dark</item>
+    </style>
+</resources>

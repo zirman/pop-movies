@@ -1,7 +1,12 @@
 package com.homes.popmovies;
 
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Parcel;
 import android.os.Parcelable;
+
+import com.homes.popmovies.data.MovieContract.VideoEntry;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -49,6 +54,16 @@ public class Video implements Parcelable {
         type = in.readString();
     }
 
+    public Video(final Cursor cursor) {
+        id = cursor.getString(cursor.getColumnIndex(VideoEntry.COLUMN_ID));
+        iso_639_1 = cursor.getString(cursor.getColumnIndex(VideoEntry.COLUMN_ISO_639_1));
+        key = cursor.getString(cursor.getColumnIndex(VideoEntry.COLUMN_KEY));
+        name = cursor.getString(cursor.getColumnIndex(VideoEntry.COLUMN_NAME));
+        site = cursor.getString(cursor.getColumnIndex(VideoEntry.COLUMN_SITE));
+        size = cursor.getInt(cursor.getColumnIndex(VideoEntry.COLUMN_SIZE));
+        type = cursor.getString(cursor.getColumnIndex(VideoEntry.COLUMN_TYPE));
+    }
+
     @Override
     public int describeContents() {
         return 0;
@@ -63,5 +78,28 @@ public class Video implements Parcelable {
         dest.writeString(site);
         dest.writeInt(size);
         dest.writeString(type);
+    }
+
+    public ContentValues toContentValues() {
+        final ContentValues videoValues = new ContentValues();
+        videoValues.put(VideoEntry.COLUMN_ID, id);
+        videoValues.put(VideoEntry.COLUMN_ISO_639_1, iso_639_1);
+        videoValues.put(VideoEntry.COLUMN_KEY, key);
+        videoValues.put(VideoEntry.COLUMN_NAME, name);
+        videoValues.put(VideoEntry.COLUMN_SITE, site);
+        videoValues.put(VideoEntry.COLUMN_SIZE, size);
+        videoValues.put(VideoEntry.COLUMN_TYPE, type);
+        return videoValues;
+    }
+
+    public Uri toVndYoutubeUri() {
+        return Uri.parse("vnd.youtube:" + key);
+    }
+
+    public Uri toYoutubeUri() {
+        return Uri.parse("https://www.youtube.com/watch")
+            .buildUpon()
+            .appendQueryParameter("v", key)
+            .build();
     }
 }

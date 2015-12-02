@@ -8,8 +8,11 @@
     </string-array>
 
     <string-array name="pref_sort_by_values">
-        <item>popularity.desc</item>
-        <item>vote_average.desc</item>
+
+        <!-- These should match sqlite column names -->
+
+        <item>popularity desc</item>
+        <item>vote_average desc</item>
         <item>@string/sort_by_favorites</item>
     </string-array>
 </resources>

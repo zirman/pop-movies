@@ -3,11 +3,13 @@ package com.homes.popmovies.data;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.util.Log;
 
 import com.homes.popmovies.Pusher;
 import com.homes.popmovies.data.MovieContract.*;
 
 public class MovieDbHelper extends SQLiteOpenHelper {
+    static private final String LOG_TAG = MovieDbHelper.class.getSimpleName();
     static private final int DATABASE_VERSION = 1;
     static public final String DATABASE_NAME = "movie.db";
 
@@ -51,6 +53,8 @@ public class MovieDbHelper extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(final SQLiteDatabase sqLiteDatabase) {
+        Log.e(LOG_TAG, "In onCreate");
+
         final String SQL_CREATE_MOVIES_TABLE = statement(createTable(
             MovieEntry.TABLE_NAME,
             Pusher.start()
@@ -123,6 +127,8 @@ public class MovieDbHelper extends SQLiteOpenHelper {
         sqLiteDatabase.execSQL(SQL_CREATE_VIDEOS_TABLE);
         sqLiteDatabase.execSQL(SQL_CREATE_REVIEWS_TABLE);
         sqLiteDatabase.execSQL(SQL_CREATE_FAVORITES_TABLE);
+
+        Log.e(LOG_TAG, "End onCreate");
     }
 
     @Override

@@ -7,23 +7,20 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 
-import com.homes.popmovies.data.MovieContract.*;
+import com.homes.popmovies.data.MovieContract.MovieEntry;
 import com.squareup.picasso.Picasso;
 
-public class FavoritesAdapter extends CursorAdapter {
+public class MovieAdapter extends CursorAdapter {
+    private static final String BASE_PATH = "http://image.tmdb.org/t/p/w500";
 
-    private static final String BASE_PATH =
-        "http://image.tmdb.org/t/p/w500";
-
-    public FavoritesAdapter(final Context context, final Cursor c, final int flags) {
-        super(context, c, flags);
+    public MovieAdapter(final Context context, final Cursor cursor, final int flags) {
+        super(context, cursor, flags);
     }
 
     @Override
     public View newView(final Context context, final Cursor cursor, final ViewGroup parent) {
         final ImageView view = new ImageView(mContext);
         view.setAdjustViewBounds(true);
-
         return view;
     }
 
