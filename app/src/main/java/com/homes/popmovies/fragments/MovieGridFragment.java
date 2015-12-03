@@ -1,4 +1,4 @@
-package com.homes.popmovies;
+package com.homes.popmovies.fragments;
 
 import android.content.ContentValues;
 import android.content.Context;
@@ -16,6 +16,11 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridView;
 
+import com.homes.popmovies.utilities.Http;
+import com.homes.popmovies.dtobjs.Movie;
+import com.homes.popmovies.MovieAdapter;
+import com.homes.popmovies.R;
+import com.homes.popmovies.utilities.Transform;
 import com.homes.popmovies.data.MovieContract.MovieEntry;
 import com.homes.popmovies.data.MovieContract.FavoriteEntry;
 import com.jakewharton.rxbinding.widget.RxAdapterView;
@@ -70,7 +75,7 @@ public class MovieGridFragment extends Fragment {
     private final BehaviorSubject<String> mSortByObservable = BehaviorSubject.<String>create();
 
     private Subscription mAdapterSubscription = null;
-    //private Subscription mItemClickSubscription = null;
+    private Subscription mItemClickSubscription = null;
 
     private void checkSortByPref() {
         mSortByObservable.onNext(getSortBy());
@@ -165,15 +170,6 @@ public class MovieGridFragment extends Fragment {
         mAdapterSubscription = adapterSubscription;
     }
 
-//    private void setItemClickSubscription(final Subscription itemClickSubscription) {
-//
-//        if (mItemClickSubscription != null) {
-//            mItemClickSubscription.unsubscribe();
-//        }
-//
-//        mItemClickSubscription = itemClickSubscription;
-//    }
-
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -195,12 +191,12 @@ public class MovieGridFragment extends Fragment {
                 final MovieAdapter adapter = pair.second;
                 gridView.setAdapter(adapter);
 
-                //setItemClickSubscription(
-                RxAdapterView.itemClickEvents(gridView).subscribe(adapterViewItemClickEvent -> {
-                    Cursor cursor = adapter.getCursor();
-                    cursor.moveToPosition(adapterViewItemClickEvent.position());
-                    mItemClickObservable.onNext(new Movie(cursor));
-                });
+                mItemClickSubscription =
+                    RxAdapterView.itemClickEvents(gridView).subscribe(adapterViewItemClickEvent -> {
+                        final Cursor cursor = adapter.getCursor();
+                        cursor.moveToPosition(adapterViewItemClickEvent.position());
+                        mItemClickObservable.onNext(new Movie(cursor));
+                    });
             }));
     }
 
@@ -233,7 +229,10 @@ public class MovieGridFragment extends Fragment {
         super.onDestroy();
         mItemClickObservable.onCompleted();
         setAdapterSubscription(null);
-        //setItemClickSubscription(null);
+
+        if (mItemClickSubscription != null) {
+            mItemClickSubscription.unsubscribe();
+        }
     }
 
     public Observable<Movie> getItemClickObservable() {

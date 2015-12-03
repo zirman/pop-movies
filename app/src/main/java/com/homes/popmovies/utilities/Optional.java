@@ -1,4 +1,4 @@
-package com.homes.popmovies;
+package com.homes.popmovies.utilities;
 
 import rx.functions.Func1;
 

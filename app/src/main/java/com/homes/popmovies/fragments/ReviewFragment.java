@@ -1,4 +1,4 @@
-package com.homes.popmovies;
+package com.homes.popmovies.fragments;
 
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
@@ -6,6 +6,10 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+
+import com.homes.popmovies.utilities.Optional;
+import com.homes.popmovies.R;
+import com.homes.popmovies.dtobjs.Review;
 
 public class ReviewFragment extends Fragment {
     static public final String REVIEW_PARCEL = "review";

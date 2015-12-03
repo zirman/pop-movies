@@ -1,4 +1,4 @@
-package com.homes.popmovies;
+package com.homes.popmovies.fragments;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -27,6 +27,13 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.homes.popmovies.utilities.Http;
+import com.homes.popmovies.dtobjs.Movie;
+import com.homes.popmovies.dtobjs.MovieDetail;
+import com.homes.popmovies.R;
+import com.homes.popmovies.dtobjs.Review;
+import com.homes.popmovies.utilities.Transform;
+import com.homes.popmovies.dtobjs.Video;
 import com.homes.popmovies.data.MovieContract.*;
 import com.jakewharton.rxbinding.view.RxView;
 import com.squareup.picasso.Picasso;
@@ -443,6 +450,8 @@ public class DetailFragment extends Fragment {
 
                 final TreePVector<ContentValues> reviews =
                     Transform.map(getReviewDataFromJson(json), Review::toContentValues);
+
+                Transform.filter(getReviewDataFromJson(json), foo -> true);
 
                 final ContentValues[] contentValues = new ContentValues[reviews.size()];
                 reviews.toArray(contentValues);

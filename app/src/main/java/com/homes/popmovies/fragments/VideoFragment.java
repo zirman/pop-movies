@@ -1,4 +1,4 @@
-package com.homes.popmovies;
+package com.homes.popmovies.fragments;
 
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
@@ -9,6 +9,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import com.homes.popmovies.utilities.Optional;
+import com.homes.popmovies.R;
+import com.homes.popmovies.dtobjs.Video;
 import com.jakewharton.rxbinding.view.RxView;
 
 public class VideoFragment extends Fragment {

@@ -7,11 +7,11 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:baselineAligned="false"
-    tools:context="com.homes.popmovies.MainActivity">
+    tools:context=".activities.MainActivity">
 
     <fragment
         android:id="@+id/fragment_movie_grid"
-        android:name="com.homes.popmovies.MovieGridFragment"
+        android:name="com.homes.popmovies.fragments.MovieGridFragment"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"

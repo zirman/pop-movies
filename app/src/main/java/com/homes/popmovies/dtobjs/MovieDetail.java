@@ -1,4 +1,4 @@
-package com.homes.popmovies;
+package com.homes.popmovies.dtobjs;
 
 import org.json.JSONException;
 import org.json.JSONObject;

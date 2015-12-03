@@ -13,6 +13,7 @@
 
         <item>popularity desc</item>
         <item>vote_average desc</item>
+
         <item>@string/sort_by_favorites</item>
     </string-array>
 </resources>

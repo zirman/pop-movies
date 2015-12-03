@@ -1,4 +1,4 @@
-package com.homes.popmovies;
+package com.homes.popmovies.utilities;
 
 import org.pcollections.ConsPStack;
 
@@ -30,7 +30,7 @@ public class Pusher {
 
         Combinator.y0((Func0<Boolean> f) -> () -> {
 
-            if (! iterator.hasNext()) {
+            if (!iterator.hasNext()) {
                 return false;
             }
 

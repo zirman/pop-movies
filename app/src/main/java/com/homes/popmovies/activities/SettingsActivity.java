@@ -1,10 +1,12 @@
-package com.homes.popmovies;
+package com.homes.popmovies.activities;
 
 import android.os.Bundle;
 import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceManager;
+
+import com.homes.popmovies.R;
 
 public class SettingsActivity extends PreferenceActivity
     implements Preference.OnPreferenceChangeListener {

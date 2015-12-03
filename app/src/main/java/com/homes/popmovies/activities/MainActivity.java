@@ -1,10 +1,14 @@
-package com.homes.popmovies;
+package com.homes.popmovies.activities;
 
 import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+
+import com.homes.popmovies.R;
+import com.homes.popmovies.fragments.DetailFragment;
+import com.homes.popmovies.fragments.MovieGridFragment;
 
 public class MainActivity extends AppCompatActivity {
     //static private final String LOG_TAG = MainActivity.class.getSimpleName();

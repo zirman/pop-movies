@@ -1,4 +1,4 @@
-package com.homes.popmovies;
+package com.homes.popmovies.dtobjs;
 
 import android.content.ContentValues;
 import android.database.Cursor;

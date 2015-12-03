@@ -4,7 +4,7 @@ import android.content.ContentResolver;
 import android.net.Uri;
 import android.provider.BaseColumns;
 
-import com.homes.popmovies.Pusher;
+import com.homes.popmovies.utilities.Pusher;
 
 public class MovieContract {
     static public final String CONTENT_AUTHORITY = "com.homes.popmovies";

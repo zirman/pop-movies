@@ -1,4 +1,4 @@
-package com.homes.popmovies;
+package com.homes.popmovies.utilities;
 
 import android.util.Log;
 

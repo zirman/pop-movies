@@ -1,10 +1,13 @@
-package com.homes.popmovies;
+package com.homes.popmovies.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
+
+import com.homes.popmovies.R;
+import com.homes.popmovies.fragments.DetailFragment;
 
 public class DetailActivity extends AppCompatActivity {
 

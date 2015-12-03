@@ -14,11 +14,9 @@ import android.support.annotation.Nullable;
 
 import com.homes.popmovies.data.MovieContract.*;
 
-import com.homes.popmovies.Pusher;
+import com.homes.popmovies.utilities.Pusher;
 
 public class MovieProvider extends ContentProvider {
-    //private static final String LOG_TAG = MovieProvider.class.getSimpleName();
-
     static private final UriMatcher sUriMatcher = buildUriMatcher();
 
     static public final int MOVIE = 100;
