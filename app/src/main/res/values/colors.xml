@@ -5,6 +5,6 @@
     <color name="pop_movies_primary_light">#ffcdd2</color>
     <color name="pop_movies_primary_dark">#d32f2f</color>
 
-    <color name="dark_text_color">#000000</color>
-    <color name="light_text_color">#ffffff</color>
+    <color name="dark_text_color">@android:color/black</color>
+    <color name="light_text_color">@android:color/white</color>
 </resources>

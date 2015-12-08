@@ -26,7 +26,7 @@ public class Http {
 //                subscriber.onCompleted();
 //            }
 //
-//        }).subscribeOn(Schedulers.io());  // Ensure this runs off main thread
+//        }).compose(Common.applySchedulers());
 //    }
 
     public static String request(final URL url) throws IOException {

@@ -5,17 +5,20 @@ import android.app.Application;
 import com.squareup.picasso.OkHttpDownloader;
 import com.squareup.picasso.Picasso;
 
+import java.util.concurrent.Executors;
+
 public class PopMovies extends Application {
 
     @Override
     public void onCreate() {
         super.onCreate();
 
-        final Picasso.Builder builder = new Picasso.Builder(this);
-        builder.downloader(new OkHttpDownloader(this, Integer.MAX_VALUE));
-        final Picasso built = builder.build();
-        //built.setIndicatorsEnabled(true);
-        //built.setLoggingEnabled(true);
-        Picasso.setSingletonInstance(built);
+        Picasso.setSingletonInstance(new Picasso.Builder(this)
+            .executor(Executors.newSingleThreadScheduledExecutor())
+            //.memoryCache(Cache.NONE)
+            .indicatorsEnabled(true)
+            //.loggingEnabled(true)
+            .downloader(new OkHttpDownloader(this, Integer.MAX_VALUE))
+            .build());
     }
 }

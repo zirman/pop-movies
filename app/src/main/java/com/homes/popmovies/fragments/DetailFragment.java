@@ -57,12 +57,12 @@ import rx.schedulers.Schedulers;
 import rx.subjects.BehaviorSubject;
 
 public class DetailFragment extends Fragment {
-    static public final String MOVIE_PARCEL = "movie";
+    public static final String MOVIE_PARCEL = "movie";
 
-    static private final String LOG_TAG = DetailFragment.class.getSimpleName();
-    static private final String BASE_PATH = "http://image.tmdb.org/t/p/w500";
+    private static final String LOG_TAG = DetailFragment.class.getSimpleName();
+    private static final String BASE_PATH = "http://image.tmdb.org/t/p/w500";
 
-    static public DetailFragment newInstance(final Movie movie) {
+    public static DetailFragment newInstance(final Movie movie) {
         final Bundle arguments = new Bundle();
         arguments.putParcelable(MOVIE_PARCEL, movie);
         final DetailFragment fragment = new DetailFragment();
@@ -70,7 +70,7 @@ public class DetailFragment extends Fragment {
         return fragment;
     }
 
-    static private MovieDetail getDetailDataFromJson(final String jsonString) {
+    private static MovieDetail getDetailDataFromJson(final String jsonString) {
 
         try {
             return new MovieDetail(new JSONObject(jsonString));
@@ -81,7 +81,7 @@ public class DetailFragment extends Fragment {
         }
     }
 
-    static private TreePVector<Video> getVideoDataFromJson(final String jsonString) {
+    private static TreePVector<Video> getVideoDataFromJson(final String jsonString) {
 
         try {
             final JSONArray resultsArray = new JSONObject(jsonString).getJSONArray("results");
@@ -99,7 +99,7 @@ public class DetailFragment extends Fragment {
         }
     }
 
-    static private TreePVector<Review> getReviewDataFromJson(final String jsonString) {
+    private static TreePVector<Review> getReviewDataFromJson(final String jsonString) {
 
         try {
             final JSONArray resultsArray = new JSONObject(jsonString).getJSONArray("results");
@@ -117,7 +117,7 @@ public class DetailFragment extends Fragment {
         }
     }
 
-    // Instance definitions.
+    // Instance declarations
 
     private final BehaviorSubject<Movie> mMovie = BehaviorSubject.<Movie>create();
     private final BehaviorSubject<View> mRootView = BehaviorSubject.<View>create();
@@ -169,7 +169,8 @@ public class DetailFragment extends Fragment {
         mReviewSubscription = reviewSubscription;
     }
 
-    private void setShareActionProviderSubscription(final Subscription shareActionProviderSubscription) {
+    private void setShareActionProviderSubscription(
+        final Subscription shareActionProviderSubscription) {
 
         if (mShareActionProviderSubscription != null) {
             mShareActionProviderSubscription.unsubscribe();
@@ -239,7 +240,9 @@ public class DetailFragment extends Fragment {
                 }
 
                 subscriber.onCompleted();
-            }).subscribeOn(Schedulers.io())
+            })
+                //.compose(Common.applySchedulers())
+                .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(movieDetail -> {
                     ((TextView) rootView.findViewById(R.id.runtime_text))
@@ -282,7 +285,8 @@ public class DetailFragment extends Fragment {
                     final ShareActionProvider shareActionProvider = pair2.second;
 
                     if (cursor.moveToFirst()) {
-                        shareActionProvider.setShareIntent(createShareVideoIntent(new Video(cursor)));
+                        shareActionProvider.setShareIntent(createShareVideoIntent(
+                            new Video(cursor)));
                     }
                 }));
 
@@ -291,7 +295,7 @@ public class DetailFragment extends Fragment {
                 subscriber.onCompleted();
             }).subscribeOn(Schedulers.io())
                 .observeOn(Schedulers.computation())
-                .subscribe(cursor -> {
+                .map(cursor -> {
 
                     final FragmentTransaction transaction =
                         getChildFragmentManager().beginTransaction();
@@ -303,8 +307,10 @@ public class DetailFragment extends Fragment {
                             ReviewFragment.newInstance(new Review(cursor)));
                     }
 
-                    transaction.commit();
-                }));
+                    return transaction;
+                })
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(FragmentTransaction::commit));
 
             final Cursor cursor = contentResolver.query(
                 FavoriteEntry.buildFavoriteUri(movie.id),
@@ -343,7 +349,9 @@ public class DetailFragment extends Fragment {
     public void onCreateOptionsMenu(final Menu menu, final MenuInflater inflater) {
         inflater.inflate(R.menu.detail_fragment, menu);
         MenuItem menuItem = menu.findItem(R.id.action_share);
-        mShareActionProvider.onNext((ShareActionProvider) MenuItemCompat.getActionProvider(menuItem));
+
+        mShareActionProvider.onNext(
+            (ShareActionProvider) MenuItemCompat.getActionProvider(menuItem));
     }
 
     private Intent createShareVideoIntent(final Video video) {

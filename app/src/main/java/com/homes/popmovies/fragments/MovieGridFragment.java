@@ -9,21 +9,21 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.util.Pair;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.GridView;
 
+import com.homes.popmovies.adapters.EmptyAdapter;
+import com.homes.popmovies.adapters.MovieAdapter;
 import com.homes.popmovies.utilities.Http;
 import com.homes.popmovies.dtobjs.Movie;
-import com.homes.popmovies.MovieAdapter;
 import com.homes.popmovies.R;
 import com.homes.popmovies.utilities.Transform;
 import com.homes.popmovies.data.MovieContract.MovieEntry;
 import com.homes.popmovies.data.MovieContract.FavoriteEntry;
-import com.jakewharton.rxbinding.widget.RxAdapterView;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -35,26 +35,19 @@ import java.net.URL;
 import java.util.Arrays;
 
 import rx.Observable;
-import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Func2;
 import rx.schedulers.Schedulers;
 import rx.subjects.BehaviorSubject;
+import rx.subscriptions.CompositeSubscription;
 
 public class MovieGridFragment extends Fragment {
-    static private final String LOG_TAG = MovieGridFragment.class.getSimpleName();
+    private static final String LOG_TAG = MovieGridFragment.class.getSimpleName();
 
-    static private TreePVector<Movie> getMovieDataFromJson(final String jsonString) {
+    private static TreePVector<Movie> getMovieDataFromJson(final String jsonString) {
 
         try {
-
             final JSONObject movieJson = new JSONObject(jsonString);
-
-            // Unused properties.
-            //int page = movieJson.getInt("page");
-            //int totalPages = movieJson.getInt("total_pages");
-            //int totalResults = movieJson.getInt("total_results";
-
             final JSONArray resultsArray = movieJson.getJSONArray("results");
             final Movie[] movies = new Movie[resultsArray.length()];
 
@@ -70,18 +63,48 @@ public class MovieGridFragment extends Fragment {
         }
     }
 
-    private final BehaviorSubject<GridView> mGridView = BehaviorSubject.<GridView>create();
-    private final BehaviorSubject<Movie> mItemClickObservable = BehaviorSubject.<Movie>create();
-    private final BehaviorSubject<String> mSortByObservable = BehaviorSubject.<String>create();
+    // Instance declarations
 
-    private Subscription mAdapterSubscription = null;
-    private Subscription mItemClickSubscription = null;
+    private final BehaviorSubject<String> mSortBys = BehaviorSubject.<String>create();
+    private final BehaviorSubject<MovieAdapter> mAdapters = BehaviorSubject.<MovieAdapter>create();
 
-    private void checkSortByPref() {
-        mSortByObservable.onNext(getSortBy());
+    private final BehaviorSubject<RecyclerView> mRecyclerViews =
+        BehaviorSubject.<RecyclerView>create();
+
+    private final Observable<Movie> mItemClicks =
+        Observable.switchOnNext(mAdapters.map(MovieAdapter::itemClicks));
+
+    private final CompositeSubscription mSubscriptions = new CompositeSubscription();
+
+    public MovieGridFragment() {
+
+        mSubscriptions.add(
+            Observable.combineLatest(
+                mRecyclerViews,
+                mAdapters,
+                (Func2<RecyclerView, MovieAdapter, Pair<RecyclerView, MovieAdapter>>) Pair::new)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(pair -> pair.first.setAdapter(pair.second)));
+
+        mSubscriptions.add(
+            mSortBys.distinctUntilChanged()
+                .observeOn(Schedulers.io())
+                .map(this::networkUpdate)  // update from network if connected
+                .observeOn(Schedulers.computation())  // process data on computation thread
+                .map(this::bulkInsertContentProvider)  // insert network data if received
+                // updates the adapter with query from content provider
+                .map(this::queryContentProvider)
+                .map(this::cursorToTreePVector)
+                .map(MovieAdapter::new)
+                .subscribe(mAdapters::onNext));
+    }
+
+    private void publishSortBy() {
+        mSortBys.onNext(getSortBy());
     }
 
     private String getSortBy() {
+
         return PreferenceManager.getDefaultSharedPreferences(getActivity())
             .getString(
                 getString(R.string.pref_sort_by_key),
@@ -89,6 +112,7 @@ public class MovieGridFragment extends Fragment {
     }
 
     private boolean isConnected() {
+
         final NetworkInfo networkInfo =
             ((ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE))
                 .getActiveNetworkInfo();
@@ -96,114 +120,100 @@ public class MovieGridFragment extends Fragment {
         return networkInfo != null && networkInfo.isConnected();
     }
 
-    private Cursor sortByToCursor(final String sortBy) {
+    private Pair<String, String> networkUpdate(final String sortBy) {
 
-        // Favorite movies
+        // TODO: only fetch when time has elapsed since last successful fetch
 
-        if (sortBy.equalsIgnoreCase(getString(R.string.sort_by_favorites))) {
-
-            return getContext().getContentResolver().query(
-                FavoriteEntry.buildFavoritesUri(),
-                null,
-                null,
-                null,
-                null);
+        if (isFavorites(sortBy) || ! isConnected()) {
+            return new Pair<>(sortBy, "");
         }
 
-        // Performs synchronous fetch of movies and saves them in content provider
+        return new Pair<>(sortBy, fetchMovies(sortBy));
+    }
 
-        if (isConnected()) {
+    private String bulkInsertContentProvider(final Pair<String, String> pair) {
 
-            // TODO: only fetch when time has elapsed since last successful fetch
+        if (! pair.second.isEmpty()) {
 
-            final TreePVector<ContentValues> contentValues = fetchMovies(sortBy);
+            final TreePVector<ContentValues> contentValues =
+                Transform.map(getMovieDataFromJson(pair.second), Movie::toContentValues);
+
             final ContentValues[] array = new ContentValues[contentValues.size()];
             contentValues.toArray(array);
-
             getContext().getContentResolver().bulkInsert(MovieEntry.buildMoviesUri(), array);
         }
 
-        // Return movies sorted from content provider
+        return pair.first;
+    }
+
+    private Cursor queryContentProvider(final String sortBy) {
+        final boolean isFavorites = isFavorites(sortBy);
 
         return getContext().getContentResolver().query(
-            MovieEntry.buildMoviesUri(),
-            null,//new String[]{ MovieEntry.COLUMN_POSTER_PATH },
+            isFavorites ?
+                FavoriteEntry.buildFavoritesUri() :
+                MovieEntry.buildMoviesUri(),
             null,
             null,
-            sortBy);
+            null,
+            isFavorites ? null : sortBy);
     }
 
-    private MovieAdapter cursorToAdapter(final Cursor cursor) {
-        return new MovieAdapter(getContext(), cursor, 0);
+    private boolean isFavorites(final String sortBy) {
+        return sortBy.equalsIgnoreCase(getString(R.string.sort_by_favorites));
     }
 
-    private TreePVector<ContentValues> fetchMovies(final String sortBy) {
+    private TreePVector<Movie> cursorToTreePVector(final Cursor cursor) {
+
+        if (! cursor.moveToFirst()) {
+            return TreePVector.empty();
+        }
+
+        TreePVector<Movie> movies = TreePVector.empty();
+
+        do {
+            movies = movies.plus(new Movie(cursor));
+        } while (cursor.moveToNext());
+
+        cursor.close();
+        return movies;
+    }
+
+    private String fetchMovies(final String sortBy) {
         final String BASE_URI = "http://api.themoviedb.org/3/discover/movie?sort_by=&api_key=";
 
         try {
 
-            return Transform.map(getMovieDataFromJson(Http.request(new URL(Uri.parse(BASE_URI)
-                    .buildUpon()
-                    .appendQueryParameter(
-                        "sort_by",
-                        sortBy.replace(' ', '.'))
-                    .appendQueryParameter(
-                        "api_key",
-                        getContext().getString(R.string.tmdb_api_key))
-                    .build()
-                    .toString()))),
-                Movie::toContentValues);
+            return Http.request(new URL(Uri.parse(BASE_URI)
+                .buildUpon()
+                .appendQueryParameter(
+                    "sort_by",
+                    sortBy.replace(' ', '.'))
+                .appendQueryParameter(
+                    "api_key",
+                    getContext().getString(R.string.tmdb_api_key))
+                .build()
+                .toString()));
 
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (final IOException error) {
+
+            // TODO: display network error
+
+            error.printStackTrace();
         }
 
-        return TreePVector.empty();
-    }
-
-    private void setAdapterSubscription(final Subscription adapterSubscription) {
-
-        if (mAdapterSubscription != null) {
-            mAdapterSubscription.unsubscribe();
-        }
-
-        mAdapterSubscription = adapterSubscription;
+        return "";
     }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        // Only changes adapter when sort by preference has changed or mGridView has changed
-
-        setAdapterSubscription(Observable.combineLatest(
-            mGridView,
-            mSortByObservable.distinctUntilChanged()
-                // sortByToCursor may perform network io and will query ContentProvider
-                .observeOn(Schedulers.io())
-                .map(this::sortByToCursor)
-                .map(this::cursorToAdapter),
-            (Func2<GridView, MovieAdapter, Pair<GridView, MovieAdapter>>) Pair::new)
-            // Update UI on main thread
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(pair -> {
-                final GridView gridView = pair.first;
-                final MovieAdapter adapter = pair.second;
-                gridView.setAdapter(adapter);
-
-                mItemClickSubscription =
-                    RxAdapterView.itemClickEvents(gridView).subscribe(adapterViewItemClickEvent -> {
-                        final Cursor cursor = adapter.getCursor();
-                        cursor.moveToPosition(adapterViewItemClickEvent.position());
-                        mItemClickObservable.onNext(new Movie(cursor));
-                    });
-            }));
     }
 
     @Override
     public void onStart() {
         super.onStart();
-        checkSortByPref();
+        publishSortBy();
     }
 
     @Override
@@ -213,29 +223,33 @@ public class MovieGridFragment extends Fragment {
         Bundle savedInstanceState) {
 
         super.onCreateView(inflater, container, savedInstanceState);
+
         final View rootView = inflater.inflate(R.layout.fragment_movie_grid, container, false);
-        mGridView.onNext((GridView) rootView.findViewById(R.id.gridview_movies));
+
+        final RecyclerView recyclerView = (RecyclerView) rootView.findViewById(R.id.recycler_view);
+        recyclerView.setHasFixedSize(true);
+        recyclerView.setAdapter(new EmptyAdapter());
+        mRecyclerViews.onNext(recyclerView);
+
         return rootView;
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        checkSortByPref();
+        publishSortBy();
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        mItemClickObservable.onCompleted();
-        setAdapterSubscription(null);
-
-        if (mItemClickSubscription != null) {
-            mItemClickSubscription.unsubscribe();
-        }
+        mSortBys.onCompleted();
+        mAdapters.onCompleted();
+        mRecyclerViews.onCompleted();
+        mSubscriptions.unsubscribe();
     }
 
-    public Observable<Movie> getItemClickObservable() {
-        return mItemClickObservable;
+    public Observable<Movie> itemClicks() {
+        return mItemClicks;
     }
 }

@@ -10,32 +10,40 @@ import com.homes.popmovies.R;
 import com.homes.popmovies.fragments.DetailFragment;
 import com.homes.popmovies.fragments.MovieGridFragment;
 
+import rx.Observable;
+import rx.Subscription;
+import rx.subjects.BehaviorSubject;
+
 public class MainActivity extends AppCompatActivity {
-    //static private final String LOG_TAG = MainActivity.class.getSimpleName();
+
+    private final BehaviorSubject<MovieGridFragment> mMovieGridFragments =
+        BehaviorSubject.<MovieGridFragment>create();
+
+    private final Subscription mItemClicksSubscription =
+        Observable.switchOnNext(mMovieGridFragments.map(MovieGridFragment::itemClicks))
+            .subscribe(movie -> {
+
+                if (findViewById(R.id.fragment_detail) == null) {
+                    Intent intent = new Intent(this, DetailActivity.class);
+                    intent.putExtra(DetailFragment.MOVIE_PARCEL, movie);
+                    startActivity(intent);
+
+                } else {
+
+                    getSupportFragmentManager()
+                        .beginTransaction()
+                        .replace(R.id.fragment_detail, DetailFragment.newInstance(movie))
+                        .commit();
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        final MovieGridFragment movieGridFragment = (MovieGridFragment)
-            getSupportFragmentManager().findFragmentById(R.id.fragment_movie_grid);
-
-        movieGridFragment.getItemClickObservable().subscribe(movie -> {
-
-            if (findViewById(R.id.fragment_detail) == null) {
-                Intent intent = new Intent(this, DetailActivity.class);
-                intent.putExtra(DetailFragment.MOVIE_PARCEL, movie);
-                startActivity(intent);
-
-            } else {
-
-                getSupportFragmentManager()
-                    .beginTransaction()
-                    .replace(R.id.fragment_detail, DetailFragment.newInstance(movie))
-                    .commit();
-            }
-        });
+        mMovieGridFragments.onNext((MovieGridFragment) getSupportFragmentManager()
+            .findFragmentById(R.id.fragment_movie_grid));
     }
 
     @Override
@@ -54,5 +62,12 @@ public class MainActivity extends AppCompatActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        mMovieGridFragments.onCompleted();
+        mItemClicksSubscription.unsubscribe();
     }
 }

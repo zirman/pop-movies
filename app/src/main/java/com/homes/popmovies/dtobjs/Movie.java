@@ -91,7 +91,10 @@ public class Movie implements Parcelable {
         // TODO: save and read in genreIds from cursors
 
         genreIds = TreePVector.empty();
-        originalLanguage = cursor.getString(cursor.getColumnIndex(MovieEntry.COLUMN_ORIGINAL_LANGUAGE));
+
+        originalLanguage =
+            cursor.getString(cursor.getColumnIndex(MovieEntry.COLUMN_ORIGINAL_LANGUAGE));
+
         originalTitle = cursor.getString(cursor.getColumnIndex(MovieEntry.COLUMN_ORIGINAL_TITLE));
         overview = cursor.getString(cursor.getColumnIndex(MovieEntry.COLUMN_OVERVIEW));
         releaseDate = cursor.getLong(cursor.getColumnIndex(MovieEntry.COLUMN_RELEASE_DATE));
